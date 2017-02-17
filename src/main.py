@@ -35,27 +35,61 @@ def fc_relu(bottom, nout, param=learned_param, weight_filler=fc_filler, bias_fil
     fc = L.InnerProduct(bottom, num_output=nout, param=param,weight_filler=weight_filler, bias_filler=bias_filler)
     return fc, L.ReLU(fc, in_place=True)
 
-def max_pool(bottom, ks, stride=1, train=False):
+def max_pool(bottom, ks, stride=2):
     return L.Pooling(bottom, pool=P.Pooling.MAX, kernel_size=ks, stride=stride)
 
 
 def defineSolver(args):
     solver = caffe_pb2.SolverParameter()
-    #TODO: set solver parameters...
+    solver.train_net = args.train_net
+    if args.test_net:
+    	solver.test_net = args.test_net
+   	solver.test_iter = 50
+    solver.test_interval = 100
+    solver.iters_size = 1
+    solver.type = "SGD"
+    solver.base_lr = 0.001
+    solver.lr_policy = 'step'
+    solver.gamma = 0.1
+    solver.stepsize = 20000
+    solver.max_iter = 100000
+    solver.momentum = 0.9
+    solver.weight_decay = 0.0005
+    solver.display = 50
+    solver.average_loss = 1
+    solver.snapshot = 5000
+    solver.snapshot_prefix = args.snapshotDir
+    if not os.path.exists(args.snapshotDir):
+	os.path.mkdir(args.snapshot_dir)
+    return solver
 
-def defineNetwork(args, imageFiles, radarData):
+#TODO: set solver parameters...
+
+def defineNetwork(args, imageFiles, radarData, training=False):
     net = caffe.NetSpec()
     #TODO: create data layer or setup image/label txt files
     net.data, net.label = None, None
-    net.conv1, net.relu1 = conv_relu(net.data, 11, 96, stride=4)
-    net.pool1 = max_pool(net.relu1, 3, stride=2)
+    net.conv1, net.relu1 = conv_relu(net.data, 3, 64, pad=1)
+    net.pool1 = max_pool(net.relu1, 2)
 
-    net.conv2, net.relu2 = conv_relu(net.pool1, 5, 256, pad=2)
-    net.pool2 = max_pool(net.relu2, 3, stride=2)
+    net.conv2, net.relu2 = conv_relu(net.data, 3, 128, pad=1)
+    net.pool2 = max_pool(net.relu2, 2)
+    
+    net.conv3, net.relu3 = conv_relu(net.data, 3, 256, pad=1)
+    net.pool3 = max_pool(net.relu3, 2)
 
+    net.fc4, net.relu4 = fc_relu(net.pool3, 1024)
+    net.drop4 = L.Dropout(net.relu4, dropout_ratio=0.5, in_place=True)
 
-    #TODO: continue making net + add late fusion
-    #TODO: read in 
+    #TODO: incorporate radar features...
+    net.fc5, net.relu5 = fc_relu(net.pool4, 512)
+    net.drop5 = L.Dropout(net.relu5, dropout_ratio=0.5, in_place=True)
+
+    net.final = L.InnerProduct(net.drop5, num_output=3, param=learned_param)
+    net.loss = L.SoftmaxWithLoss(net.final, net.label)
+    if training:
+    	net.acc = L.Accuracy(net.final, net.label)
+    return net.to_proto()
 
 """
 
@@ -76,10 +110,15 @@ def saveFrames(frames, outputDir, videoFile):
 
 def main(args):
     frames = ffmpeg.extract(args.video)
+    
     if not os.path.exists(args.outputDir):
         os.mkdir(args.outputDir)
         os.mkdir(args.outputDir + 'data/')
-    
+   
+    args.train_net = args.outputDir + 'train_net.prototxt'
+    args.test_net  = args.outputDir + 'test_net.prototxt'
+    args.solver_file = args.outputDir + 'solver.prototxt' 
+
     imageFiles = saveFrames(frames, args.outputDir + 'data/', args.video)
     radarData = None #TODO: read in radar data
 
@@ -89,8 +128,18 @@ def main(args):
     else:
         caffe.set_mode_cpu()
 
-    train_net, test_net = defineNetwork(args, imageFiles, radarData)
-    #TODO: create prototxt files
+    solver = defineSolver(args)
+    trainNet = defineNetwork(args, imageFiles, radarData, training=True)
+    testNet = defineNetwork(args, imageFiles, radarData, training=False)
+    
+    with open(args.train_net,'w') as f:
+	f.write(str(trainNet))
+    with open(args.test_net,'w') as ft:
+	ft.write(str(testNet))
+    with open(args.solver_file,'w') as fs:
+	fs.write(str(solver))
+
+
     #TODO: call training command for protoxt
 
 
@@ -101,6 +150,7 @@ def parseArgs():
     #TODO: change this to include multiple radar files for each of the images
     parser.add_argument('--radar', type=str, default='nokia_data/image3d_2017.01.12_10.29.mat', help='file with radar information')
     parser.add_argument('--outputDir', type=str,default='output/', help='dir to store random processing output')
+    parser.add_argument('--snapshotDir',type=str, default='snapshsots/', help='where to store training snapshots')
     parser.add_argument('--gpu', type=int, default=0, help='GPU used to train network; set to -1 for CPU training')
     return parser.parse_args()
 
