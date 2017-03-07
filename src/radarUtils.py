@@ -9,6 +9,7 @@ from matplotlib import gridspec
 import numpy as np
 import ipdb
 import datetime
+import os.path as osp
 
 def frames2movie(ims, outFile, frames):    
     ''' convert radar frames into movie - for internal use by plot_radar'''
@@ -27,8 +28,8 @@ def frames2movie(ims, outFile, frames):
     def make_frame(idx):
         tIm = ims[:, idx][0]
         fig.suptitle('Frame %d' % idx)
-        ax2.imshow(np.squeeze(np.mean(abs(tIm), 0))/4e-6)
-        ax.imshow(np.squeeze(np.mean(abs(tIm), 1))/4e-6)
+        ax2.imshow(np.squeeze(np.mean(abs(tIm), 0))/4e-6, interpolation='nearest', vmin=0, vmax=10)
+        ax.imshow(np.squeeze(np.mean(abs(tIm), 1))/4e-6, interpolation='nearest', vmin=0, vmax=10)
 
     if frames is None:
         frameIter = range(ims.shape[1])
@@ -48,7 +49,8 @@ def plot_radar(inFile, outFile='out.mp4', frames=None):
 
 def file2dateTime(inFile):
     """extract datetime object from filename in format image3d_2017.01.12_10.21.mat"""
-    (im, cal, tim) = inFile.split('_')
+    bname = osp.basename(inFile)
+    (im, cal, tim) = bname.split('_')
     ctim = tim.split('.')
     dstr = cal + '.' + ctim[0] + '.' + ctim[1]
     return datetime.datetime.strptime(dstr, '%Y.%m.%d.%H.%M')  

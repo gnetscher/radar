@@ -1,8 +1,9 @@
-from radarUtils import plotRadar
+from radarUtils import plot_radar
 import ipdb
 import argparse
 import ffmpeg
 import os
+import os.path as osp
 
 import caffe
 from caffe.proto import caffe_pb2
@@ -156,6 +157,8 @@ def parseArgs():
 
 if __name__=="__main__":
     args = parseArgs()
-    plotRadar('nokia_data/image3d_2017.01.12_10.29.mat', 'test29.mp4')
-    main(args)
+    baseDir = '/mnt/HardDrive/common/nokia_radar/sleeplab'
+    outDir  = '../out'
+    plot_radar(osp.join(baseDir, 'image3d_2017.01.12_10.29.mat'), osp.join(outDir, 'test29.mp4'))
+    # main(args)
     
