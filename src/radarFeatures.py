@@ -13,12 +13,18 @@ from radarUtils import file2dateTime
 
 class RadarExtractor:
     """class for extracting radar features"""
-    
-    def __init__(self, dataFiles, frameRate=10):
+     
+    @staticmethod
+    def wavelet_transform(inVal):
+        return pywt.swt(inVal, 'rbio3.3')
+
+    def __init__(self, dataFiles, frameRate=10, scaleFactor=4e-6):
         """pass in one of more data files for future feature extraction
            if more than one file is passed, they are assumed to be in contiguous order
            :param: dataFiles: must be in a tuple and 
                    is assumed to be in format image3d_2017.01.12_10.21.mat
+           :param: frameRate: sampling rate of the radar system in Hz
+           :param: scaleFactor: factor used to increase scale to avoid roundoff errors
         """
         # init frame rate, start time, and data
         self.frameRate = frameRate
@@ -32,8 +38,12 @@ class RadarExtractor:
                 imsFull = np.hstack((imsFull, ims))
             else:
                 imsFull = ims
-        self.data = imsFull[0]
+        self.data = imsFull[0]/scaleFactor
+        self.yvel = self.calc_avg_vel(self.data)
+        self.yvelWaveCo = np.array(self.wavelet_transform(self.yvel))
 
+    # TODO: true positive should only be the period of 2.5s around the transition from
+    #       any position to on the ground
     def extract_window_features(self, windowStart=None, windowStop=None, frameRate=10):
         """extract features from self.data from windowStart to windowStop
            :param: windowStart: time of start or none if start from data beginning
@@ -41,11 +51,10 @@ class RadarExtractor:
         """
         # calculate all energy values within window
         # TODO: properly handle windowing
-        # TODO: properly handle advancing .25 seconds for each window
+        # TODO: properly handle advancing .25 seconds for each window (M=7 b/c window=1s)
         dataWindow = self.data
-        self.calc_energy(dataWindow,1,1,frameRate)
-        for idx in range(6):
-            i = idx+1
+        self.calc_energy(1,1,frameRate)
+        for i in range(yvelWaveCo.shape[0]*yvelWaveCo.shape[1]):
             energyWindow = []
             for j, im in enumerate(dataWindow):
                 energyWindow.append(calc_energy(i, j))
@@ -54,42 +63,41 @@ class RadarExtractor:
     
     
         # create feature vector
-    
-    @staticmethod
-    def waveletTransform(inVal):
-        pass
-    
-    @staticmethod
-    def calc_energy(data, i, j, frameRate):
-        """calculate the energy from equation 4
-           :param: i: index of WT coefficients at 2^i 
-           :param: j: frame
-        """
-        # window size corresponding to 0.5s
-        N = frameRate*0.5
-        # energy calculation for this window
-        out = 0 
-        hamWin = hamming(N)
+   
+    def calc_avg_vel(self, data):
         # to replicate paper, calculate average velocity in the y direction
-        ipdb.set_trace()
         ycurr = np.mean(data[0], (0,2))
         ydiffarr = np.zeros(ycurr.shape) # contains total movement vector
         yvel = np.zeros(len(data)) # contains approximation of average velocity form movement vector
-        for i in range(len(data)):
+        for idx in range(len(data)):
             # convolve with derivative of gaussian kernel [-1, 0, 1], 0 padding
-            if i<len(data)-1:
-                ynext = np.mean(data[i+1], (0,2))
-                if i>=1:
+            if idx<len(data)-1:
+                ynext = np.mean(data[idx+1], (0,2))
+                if idx>=1:
                     ydiff = ynext - yprev
                     ydiffarr = np.vstack((ydiffarr, ydiff))
-                    yvel[i] = np.mean(np.absolute(ydiff))
+                    yvel[idx] = np.mean(np.absolute(ydiff))
                 yprev = ycurr
                 ycurr = ynext
             else:
                 ydiffarr = np.vstack((ydiffarr, np.zeros(ycurr.shape)))
-
+        return yvel
+   
+    def calc_energy(self, i, j, frameRate):
+        """calculate the energy from equation 4
+           :param: i: index of WT coefficients at 2^i 
+           :param: j: frame (note a frame is composed of N samples -- there are len(data)/N frames)
+        """
+        # window size corresponding to 1s (note paper says 0.5, but our frame rate is lower,
+        # so I don't want to make the window too small)
+        N = int(frameRate*1)
+        # energy calculation for this window
+        out = 0 
+        hamWin = hamming(N)
+        # calculate energy from eq 4
+        ipdb.set_trace()
         for l in range(N):
-            newVal = (hamWin[l]*waveletTransform(l+j(N/2)))**2
+            newVal = (hamWin[l]*self.yvelWaveCo[i/2][i%2][l+j*N/2])**2
             out = out + newVal
         return out 
     
