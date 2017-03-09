@@ -95,7 +95,7 @@ class RadarExtractor:
             raise ValueError('Time specified is %s which is not within data window' % time)
         frame = int(timeRatio*self.numFrames)
 
-        ipdb.set_trace()
+        #ipdb.set_trace()
         # output feature vector
         start = max(frame-self.M, 0)
         stop  = min(frame+self.M+1, self.numFrames)
@@ -161,4 +161,5 @@ if __name__ == '__main__':
     dataFiles = ('image3d_2017.01.12_10.29.mat', 'image3d_2017.01.12_10.30.mat') 
     radext = RadarExtractor([osp.join(baseDir, dataFile) for dataFile in dataFiles])
     # assume want to extract features from all data
-    radext.extract_features(datetime.datetime.strptime('10:30:59', '%H:%M:%S'))
+    feat = radext.extract_features(datetime.datetime.strptime('10:30:49', '%H:%M:%S'))
+    print feat

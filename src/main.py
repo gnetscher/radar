@@ -2,6 +2,7 @@ from radarUtils import plot_radar
 import ipdb
 from ns_backend import *
 from chainer.objects import data_objects as dj
+import radarDataLayer
 import argparse
 import os
 import os.path as osp
@@ -67,15 +68,16 @@ def define_solver(args):
   return solver
 
 
-def define_network(args, imageFile, radarFile, training=False):
+def define_network(args, imageFile, videos, radarFiles, training=False):
   net = caffe.NetSpec()
   
   #setting up data layer..
-  mean = [104, 117, 123]
-  batchSize = 64
+  mean = [] #TODO: calculate mena
   transformParam = dict(mirror=training, crop_size=args.crop, mean_value = mean)
-  net.data, net.label = L.ImageData(transform_param = transformParam, source=imageFile, shuffle=training, batch_size=batch_size, ntop=2)
-  net.radar = None
+  pydataParams = dict(radar_files = radarFiles, videos = videos, batch_size = args.batchSize)
+  # TODO: add shuffling capability
+  net.data, net.label = L.ImageData(transform_param = transformParam, source=imageFile, shuffle=False, batch_size=args.batchSize, ntop=2)
+  net.radar = L.Python(module='radarDataLayer', layer='RadarDataLayer', param_str=str(pydataParams), ntop=1)
   
   net.conv1_1, net.relu1_1 = conv_relu(net.data, 3, 32)
   net.conv1_2, net.relu1_2 = conv_relu(net.relu1_1, 3, 32)
@@ -113,12 +115,11 @@ def define_network(args, imageFile, radarFile, training=False):
 """
 Training Code
 """
-# creating train/val.txt for reading into caffe
-def create_train_txt(videos, radar):
-  trainName = "train.txt"; valName = "val.txt"
+def create_data_txt(videos, stage='train'):
+  fileName = "%s.txt" % (stage)
   frameFiles = []; frameLabels = []
-     
-  for i,v in enumerate(videos):
+    
+  for v in videos:  
     if not v.is_saved_frames():
       v.save_frames()
     for i in range(v.frame_count):
@@ -130,19 +131,11 @@ def create_train_txt(videos, radar):
       for l in labels:
         if l in LABELMAP:
           frameLabels.append(LABELMAP[l])
-    
-    #TODO: get corresponding radar features
-  trainSize = int(0.8*len(frameFiles))
-  trainInd = np.random.choice(len(frameFiles), trainSize,replace=False)
-  valInd = np.delete(np.arange(len(frameFiles)), trainInd)
 
-  with open(trainName,'w') as f:
-    for t in trainInd:
+  with open(fileName,'w') as f:
+    for t in range(len(frameFiles)):
       f.write('%s %s\n' %(frameFiles[t], frameLabels[t]))
-  with open(valName, 'w') as f:
-    for t in valInd:
-      f.write('%s %s\n' %(frameFiles[t], frameLabels[t]))
-  return trainName, valName   
+  return fileName  
 
 def train(args):
   cmd = ['caffe','train', '-solver', args.solverFile, '-gpu', args.gpu]
@@ -156,16 +149,23 @@ def main(args):
   filteredVideos = []
   for v in videos:
     local, glob = v.annotation
-    if local and ('104656' in v.local_path):
+    if local and ('101656' in v.local_path):
       filteredVideos.append(v)
   
-  radarFiles = [args.radarDir + 'image3d_2017.01.12_10.%s.mat' %(str(int(av.local_path.split('.')[-2]) + 17)) for v in filteredVideos]
+  radarFiles = [osp.join(args.radarDir,'image3d_2017.01.12_10.%s.mat' % (str(int(av.local_path.split('.')[-2]) + 17))) for v in filteredVideos]
   for i in range(len(radarFiles)):
     if not osp.exists(radarFiles[i]):
       radarFiles.remove(radarFiles[i])
       filteredVideos.remove(filteredVideos[i])
 
-  trainFile, trainRadar, valFile, valRadar = create_train_txt(filteredVideos, radarFiles)
+  trainInd = np.random.choice(len(filteredVideos), int(0.8*len(filteredVideos)), replace=False)
+  valInd = np.delete(np.arange(len(filteredVideos), trainInd)
+
+  trainVideos = [filteredVideos[x] for x in trainInd]
+  valVideos = [filteredVideos[x] for x in valInd]
+
+  trainTxt = create_data_txt(trainVideos, stage="train")
+  valTxt = create_data_txt(valVideos, stage="val")
 
   if not os.path.exists(args.outputDir):
     os.mkdir(args.outputDir)
@@ -181,8 +181,8 @@ def main(args):
     caffe.set_mode_cpu()
 
   solver = define_solver(args)
-  trainNet = define_network(args, trainFile, trainRadar, training=True)
-  testNet = define_network(args, valFile, valRadar, training=False)
+  trainNet = define_network(args, trainTxt, trainVideos, radarFiles, training=True)
+  testNet = define_network(args, valTxt, valVideos, radarFiles, training=False)
     
   with open(args.trainNet,'w') as f:
     f.write(str(trainNet))
@@ -194,19 +194,17 @@ def main(args):
   train(args)
 
 
-
 def parseArgs():
   parser = argparse.ArgumentParser()
   parser.add_argument('--radarDir', type=str, default='/mnt/HardDrive/common/nokia_radar/sleeplab', help='dir that contains radar files')
   parser.add_argument('--outputDir', type=str,default='output/', help='dir to store random processing output')
   parser.add_argument('--weights', type=str, default=None, help="pretrained weights for loading")
   parser.add_argument('--snapshotDir',type=str, default='snapshsots/', help='where to store training snapshots')
+  parser.add_argument('--batchSize', type=int , default=64, help='batch size for training')
   parser.add_argument('--gpu', type=int, default=0, help='GPU used to train network; set to -1 for CPU training')
   return parser.parse_args()
 
 if __name__=="__main__":
   args = parseArgs()
-  #outDir  = '../out'
-  #plot_radar(osp.join(args.radarDir, 'image3d_2017.01.12_10.29.mat'), osp.join(outDir, 'test29.mp4'))
   main(args)
-    
+
