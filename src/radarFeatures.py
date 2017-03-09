@@ -81,40 +81,56 @@ class RadarExtractor:
         self.numFrames = (self.yvelWaveCo.shape[2] - self.frameLen) / (self.frameLen / self.shiftLen) + 1
         self.frameEnergies = self.calc_frame_energies()
 
-    def extract_features(self, time):
+    def extract_features(self, time, stopWindow=None):
         """extract features from self.data at the frame corresponding to time 
            :param: time: datetime object corresponding to exact time wanting features extracted
+           :param: stopWindow: allows for specifying range. if not None, a feature array will be 
+                   returned for all frames between time and stopWindow
         """
-        # find matching frame
+        def time2frame(time):
+            # find matching frame for time
+            timeRatio = (float((3600*time.hour + 60*time.minute + time.second)) - \
+                         (3600*self.startTime.hour + 60*self.startTime.minute + self.startTime.second)) / \
+                        ((3600*self.endTime.hour + 60*self.endTime.minute + self.endTime.second) - \
+                         (3600*self.startTime.hour + 60*self.startTime.minute + self.startTime.second))
+            if timeRatio < 0.0 or timeRatio > 1.0:
+                raise ValueError('Time specified is %s which is not within data window' % time)
+            frame = int(timeRatio*self.numFrames)
+            return frame
         
-        timeRatio = (float((3600*time.hour + 60*time.minute + time.second)) - \
-                     (3600*self.startTime.hour + 60*self.startTime.minute + self.startTime.second)) / \
-                    ((3600*self.endTime.hour + 60*self.endTime.minute + self.endTime.second) - \
-                     (3600*self.startTime.hour + 60*self.startTime.minute + self.startTime.second))
-        if timeRatio < 0.0 or timeRatio > 1.0:
-            raise ValueError('Time specified is %s which is not within data window' % time)
-        frame = int(timeRatio*self.numFrames)
-
-        #ipdb.set_trace()
-        # output feature vector
-        start = max(frame-self.M, 0)
-        stop  = min(frame+self.M+1, self.numFrames)
-        if stop - start == 2*self.M+1:
-            features = self.frameEnergies[:, start:stop]
+        # find matching frame for time and stopWindow
+        startFrame = time2frame(time)
+        if stopWindow is not None:
+            stopFrame = time2frame(stopWindow)
         else:
-            # use edge values to reach correct vector length
-            if start == 0:     
-                features = self.frameEnergies[:, start]
-                for _ in range(1, 2*self.M+1 - (stop-start)):
-                    features = np.vstack((features, self.frameEnergies[:, start]))
-                features = np.transpose(features)
-                features = np.hstack((features, self.frameEnergies[:, start:stop]))
-            else:
-                features = self.frameEnergies[:, start:stop]
-                for _ in range(2*self.M+1 - (stop-start)):
-                    features = np.hstack((features, self.frameEnergies[:, stop-1, None]))
+            stopFrame = startFrame + 1
 
-        return features
+        # create feature vector
+        featureVec = []
+        for frame in range(startFrame, stopFrame):
+            start = max(frame-self.M, 0)
+            stop  = min(frame+self.M+1, self.numFrames)
+            if stop - start == 2*self.M+1:
+                features = self.frameEnergies[:, start:stop]
+            else:
+                # use edge values to reach correct vector length
+                if start == 0:     
+                    features = self.frameEnergies[:, start]
+                    for _ in range(1, 2*self.M+1 - (stop-start)):
+                        features = np.vstack((features, self.frameEnergies[:, start]))
+                    features = np.transpose(features)
+                    features = np.hstack((features, self.frameEnergies[:, start:stop]))
+                else:
+                    features = self.frameEnergies[:, start:stop]
+                    for _ in range(2*self.M+1 - (stop-start)):
+                        features = np.hstack((features, self.frameEnergies[:, stop-1, None]))
+            featureVec.append(features)
+
+        # return list if window requested, return features for individual frame if only frame requested
+        if stopWindow is not None:
+            return featureVec
+        else:
+            return features
 
    
     def calc_avg_vel(self, data):
@@ -161,5 +177,7 @@ if __name__ == '__main__':
     dataFiles = ('image3d_2017.01.12_10.29.mat', 'image3d_2017.01.12_10.30.mat') 
     radext = RadarExtractor([osp.join(baseDir, dataFile) for dataFile in dataFiles])
     # assume want to extract features from all data
-    feat = radext.extract_features(datetime.datetime.strptime('10:30:49', '%H:%M:%S'))
+    startTime = datetime.datetime.strptime('10:29:30', '%H:%M:%S')
+    endTime = datetime.datetime.strptime('10:30:30', '%H:%M:%S')
+    feat = radext.extract_features(startTime, endTime)
     print feat
