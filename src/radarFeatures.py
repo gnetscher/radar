@@ -58,7 +58,7 @@ class RadarExtractor:
            :param: featureType: 'velocity' or 'position' - specifies the type of feature vector to extract
         """
         # init constants
-        self.frameRate = 10 
+        self.frameRate = 10
         self.frameLen  = 10
         self.shiftLen  = 2
         self.fallLen   = 26
@@ -299,3 +299,4 @@ if __name__ == '__main__':
     endTime = datetime.datetime.strptime('10:29:35', '%H:%M:%S')
     feat = radext.extract_features(startTime, endTime)
     print feat
+    print np.array(feat).shape

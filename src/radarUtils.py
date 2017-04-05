@@ -43,6 +43,7 @@ def frames2movie(ims, outFile, frames):
 
 def plot_radar(inFile, outFile='out.mp4', frames=None):
     '''read in data file and produce movie'''
+    print inFile
     matContents = sio.loadmat(inFile)
     ims = matContents['images']
     frames2movie(ims, outFile, frames)
