@@ -1,0 +1,55 @@
+{
+    "SensorType": {
+        "Video": 0
+    },
+
+
+    "Stage": {
+        "__desc__": "Identify an annotation step.",
+        "Checked": {
+            "bit": 0,
+            "__desc__": "Indicates that the last annotation step has been checked."
+        },
+        "Done": {
+            "bit"     : 1,
+            "__desc__": "Indicates that a labeler has finished the current annotation step."
+        },
+        "CategoryStep": {
+            "bit"     : 2,
+            "__desc__": "Step where the content of the video is assessed (i.e. is there something of interest)."
+        },
+        "BBoxAnnotationStep": {
+            "bit"     : 3,
+            "__desc__": "Step where bounding boxes are drawn around objects."
+        },
+        "IdentificationStep": {
+            "bit"     : 4,
+            "__desc__": "Step where people are identified."
+        },
+        "AutoAnnotationStep": {
+            "bit"     : 5,
+            "__desc__": "Step where an algorithm do the annotations."
+        },
+        "OccTherapistAnnotationStep": {
+            "bit"     : 6,
+            "__desc__": "Step where an occupational therapist annotates the entry."
+        }
+    },
+
+    "DataFlag": {
+        "__desc__": "Notifies something important on a data entry.",
+        "Fall": {
+            "bit"     : 0,
+            "__desc__": "Indicates that a fall is present on the entry."
+        },
+        "OnTheGround": {
+            "bit"     : 1,
+            "__desc__": "Indicates that someone is on the ground in the entry."
+        },
+        "ImproperBehavior": {
+            "bit"     : 2,
+            "__desc__": "Indicates that someone has an improper behavior in the entry."
+        }
+    }
+}
+
