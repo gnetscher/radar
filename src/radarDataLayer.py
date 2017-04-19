@@ -32,8 +32,8 @@ class RadarDataLayer(caffe.Layer):
     for v in self.videos:
       frameCount = v.frame_count
       start = v.start_timestamp
-      #if start.minute < 17:
-      #	start = datetime.datetime(start.year, start.month, start.day, start.hour, 17, 0)
+      if start.minute < 17:
+      	start = datetime.datetime(start.year, start.month, start.day, start.hour, 17, 0)
       for x in range(frameCount):
         feat = self.radExt.extract_features(start + timedelta(seconds = self.spf*x))
         self.radarFeat.append(feat.flatten())
