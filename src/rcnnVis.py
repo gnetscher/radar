@@ -91,7 +91,7 @@ def visualize_results(totalDet, totalImageFile):
 
 
 if __name__=="__main__":
-  session.authenticate('DeepLearningTeam', 'MrRobo+0')
+  session.authenticate('Nokia', 'nokia')
   videos = get_videos()
   fileList, paths = create_train_txt(videos)
   totalDet, totalIm = get_rcnn_detections(fileList)
