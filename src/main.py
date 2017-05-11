@@ -2,23 +2,22 @@ from radarUtils import plot_radar
 import ipdb
 from ns_backend import *
 import numpy as np
-from chainer.objects import data_objects as dj
 import scipy.io as spio
 import argparse
 import os, sys
 import os.path as osp
 import subprocess
 import caffe
+from chainer.chainer_utils import io_utils
 from caffe.proto import caffe_pb2
 from caffe import layers as L
 from caffe import params as P
-
+from chainer.config import *
 
 """
 Network Definitions
 """
-#LABELMAP = {"Sitting": 0, "Standing": 1, "Fall": 2, "Walking": 1, "On the ground": 2, "Lying down": 3}
-LABELMAP = {"Sitting": 0, "Standing": 1, "Walking": 1}
+LABELMAP = {"Sitting": 0, "Standing": 1, "Fall": 2, "Walking": 1, "On the ground": 2, "Lying down": 3}
 weight_param = dict(lr_mult=1, decay_mult=1)
 bias_param   = dict(lr_mult=2, decay_mult=0)
 learned_param = [weight_param, bias_param]
@@ -125,10 +124,16 @@ def create_data_txt(videos, stage='train'):
   frameFiles = []; frameLabels = []
     
   for v in videos:  
-    if not v.is_saved_frames():
-      v.save_frames()
+    # saving frames from video
+    outDir = osp.join(args.tmpdir, 'vid_%s' % str(v.id))
+    if not osp.exists(outDir):
+      os.mkdir(outDir)
 
-    loc, glob = v.annotation.anns
+    io_utils.save_video_frames(osp.join(args.storeDir,v.path), outDir)
+    framePaths = [outDir + '/%s.jpg' % str(x) for x in range(1, v.frame_count + 1)] 
+    
+    annObj = NSAnnotation.objects.get(_id=v.annotation_id)
+    loc, glob = annObj.uncompress()
     if 'person' in loc:
       searchKey = 'person'
     elif 'Nokia' in loc:
@@ -142,17 +147,8 @@ def create_data_txt(videos, stage='train'):
       labels = loc[searchKey][k]['labels']
       for l in labels:
         if l in LABELMAP:
-          frameFiles.append(v.get_frame_path(frameNum=k))
+          frameFiles.append(framePaths[k])
           frameLabels.append(LABELMAP[l])
-
-    #for obj_key in loc:
-    #  for frameInd in loc[obj_key]:
-    #     labels = loc[obj_key][frameInd]['labels']
-    #     if 'Person' in labels:
-    #       for l in labels:
-    #         if l in LABELMAP:
-    #           frameFiles.append(v.get_frame_path(frameNum=frameInd))
-    #           frameLabels.append(LABELMAP[l])
 
   with open(fileName,'w') as f:
     for t in range(len(frameFiles)):
@@ -164,49 +160,31 @@ def train(args):
   if args.weights:
     runstring = '/mnt/HardDrive/common/pkg/caffe/build/tools/caffe train -solver {} -gpu {} -weights {} 2>&1 | tee -a {}'.format(args.solverFile, str(args.gpu), args.weights, args.logFile)
   os.system(runstring)
-  
-def main(args):
-  videos = NSVideo.objects.filter(sensor_id__startswith='Nokia').filter(annotation_id__isnull=False)
-  videos = [dj.Video(v) for v in videos]
-  filteredVideos = []
-  for v in videos:
-    local, glob = v.annotation.anns
-    if local and ('101656' in v.local_path):
-       filteredVideos.append(v)
-  
-  radarFiles = [osp.join(args.radarDir,'image3d_2017.01.12_10.%s.mat' % (str(int(v.local_path.split('.')[-2]) + 17))) for v in filteredVideos]
 
-  for r,v in zip(radarFiles, filteredVideos):   
-    if not osp.exists(r):
-      radarFiles.remove(r)
-      filteredVideos.remove(v)
 
-  # hack added because some radar Files are not loading properly
-  radarFiles = radarFiles[:18]
-  filteredVideos = filteredVideos[:18]
-  
+def train_val_split(args, videos, trainRatio=0.8):
+  n = len(videos)
+  trainInd = np.random.choice(n, int(trainRatio*n), replace=False)
+  valInd  = np.delete(np.arange(n), trainInd)
+
+  trainVid = [videos[x] for x in trainInd]
+  valVid = [videos[x] for x in valInd]
+
+  trainIds = [str(v.id) for v in trainVid]
+  valIds = [str(v.id) for v in valVid]
+  return trainVid, trainIds, valVid, valIds
+
+def setup(args):
   if not os.path.exists(args.outputDir):
     os.mkdir(args.outputDir)
 
-  trainInd = np.random.choice(len(filteredVideos), int(0.3*len(filteredVideos)), replace=False)
-  #valInd = np.delete(np.arange(len(filteredVideos)), trainInd)
-
-  trainVideos = [filteredVideos[x] for x in trainInd]
-  #valVideos = [filteredVideos[x] for x in valInd]
-
-  trainTxt = create_data_txt(trainVideos, stage="train")
-  #valTxt = create_data_txt(valVideos, stage="val")
-
-  trainIds = [str(v.video_id) for v in trainVideos]
-  #valIds = [str(v.video_id) for v in valVideos]
-
-
+  args.storeDir = "/mnt/Ext/data/"
   args.mean = [117.193,  117.673,  114.125]
-  args.num_out = 2
+  args.num_out = 4
   args.trainNet = osp.join(os.getcwd(), args.outputDir + 'train_net.prototxt')
-  #args.testNet  = osp.join(os.getcwd(), args.outputDir + 'test_net.prototxt')
-  args.testNet = osp.join(os.getcwd(), 'runs/fullRadar/test_net.prototxt')
+  args.testNet  = osp.join(os.getcwd(), args.outputDir + 'test_net.prototxt')
   args.solverFile = osp.join(os.getcwd(), args.outputDir + 'solver.prototxt')
+  args.tmpdir = get_basic_paths()['tmpvideo']['dr']
 
   if args.gpu >= 0:
     caffe.set_mode_gpu()
@@ -214,27 +192,55 @@ def main(args):
   else:
     caffe.set_mode_cpu()
 
+
+def main(args):
+  videos = NSVideo.objects.filter(sensor_id__startswith='Nokia').filter(annotation_id__isnull=False)
+  filteredVideos = []
+
+  for v in videos:
+    annObj = NSAnnotation.objects.get(_id=v.annotation_id)
+    loc,glob = annObj.uncompress()
+    if loc and ('101656' in v.path):
+       filteredVideos.append(v)
+  
+  radarFiles = [osp.join(args.radarDir,'image3d_2017.01.12_10.%s.mat' % (str(int(v.path.split('.')[-2]) + 17))) for v in filteredVideos]
+  for r,v in zip(radarFiles, filteredVideos):   
+    if not osp.exists(r):
+      radarFiles.remove(r)
+      filteredVideos.remove(v)
+
+  setup(args)
+  #trainVideos, trainIds, valVideos, valIds = train_val_split(args, filteredVideos)
+
+  #trainTxt = create_data_txt(trainVideos, stage="train")
+  #valTxt = create_data_txt(valVideos, stage="val")
+  trainTxt = osp.join(os.getcwd(), "runs_full/fullJoint/train.txt")
+  valTxt = osp.join(os.getcwd(), 'runs_full/fullJoint/val.txt')
+  trainIds = [x.rstrip().split()[0].split('/')[-2].split('_')[1] for x in open(trainTxt).readlines()]
+  valIds = [x.rstrip().split()[0].split('/')[-2].split('_')[1] for x in open(valTxt).readlines()]
+
   solver = define_solver(args)
   trainNet = define_network(args, trainTxt, trainIds, radarFiles, training=True)
-  #testNet = define_network(args, valTxt, valIds, radarFiles, training=False)
+  testNet = define_network(args, valTxt, valIds, radarFiles, training=False)
   
   with open(args.trainNet,'w') as f:
     f.write(str(trainNet))
-  #with open(args.testNet,'w') as ft:
-  #  ft.write(str(testNet))
+  with open(args.testNet,'w') as ft:
+    ft.write(str(testNet))
   with open(args.solverFile,'w') as fs:
     fs.write(str(solver))
+
   train(args)
 
 
 def parseArgs():
   parser = argparse.ArgumentParser()
-  parser.add_argument('--radarDir', type=str, default='/mnt/HardDrive/common/nokia_radar/sleeplab', help='dir that contains radar files')
-  parser.add_argument('--logFile', type=str, default='logs/halfRadar.log')
+  parser.add_argument('--radarDir', type=str, default='/mnt/HardDrive/common/nokia_radar/sleeplab/fixedradar/', help='dir that contains radar files')
+  parser.add_argument('--logFile', type=str, default='logs_full/fullRadar.log')
   parser.add_argument('--expType', nargs='?', choices=['radar','image','joint'], default='radar')
-  parser.add_argument('--outputDir', type=str,default='runs/halfRadar/', help='dir to store random processing output')
-  parser.add_argument('--weights', type=str, default='/mnt/HardDrive/common/caffe_models/caffenet/bvlc_reference_caffenet.caffemodel', help="pretrained weights for loading")
-  parser.add_argument('--snapshotDir',type=str, default='snapshots/halfRadar/', help='where to store training snapshots')
+  parser.add_argument('--outputDir', type=str,default='runs_full/fullRadar/', help='dir to store random processing output')
+  parser.add_argument('--weights', type=str, default='/mnt/HardDrive/common/caffe_models/bvlc_reference_caffenet.caffemodel', help="pretrained weights for loading")
+  parser.add_argument('--snapshotDir',type=str, default='snapshots_full/fullRadar/', help='where to store training snapshots')
   parser.add_argument('--batchSize', type=int , default=32, help='batch size for training')
   parser.add_argument('--gpu', type=int, default=1, help='GPU used to train network; set to -1 for CPU training')
   return parser.parse_args()
