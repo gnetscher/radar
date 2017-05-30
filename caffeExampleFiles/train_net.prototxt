@@ -1,0 +1,361 @@
+layer {
+  name: "data"
+  type: "ImageData"
+  top: "data"
+  top: "label"
+  transform_param {
+    mirror: true
+    mean_value: 117.193
+    mean_value: 117.673
+    mean_value: 114.125
+  }
+  image_data_param {
+    source: "runs/fullJoint/train.txt"
+    batch_size: 32
+    shuffle: false
+  }
+}
+layer {
+  name: "radar"
+  type: "Python"
+  top: "radar"
+  python_param {
+    module: "radarDataLayer"
+    layer: "RadarDataLayer"
+    param_str: "{\'batch_size\': 32, \'videos\': [\'5892337e4137630146623c3c\', \'5892337e4137630146623c40\', \'5892337e4137630146623c3f\', \'5892337e4137630146623c48\', \'5892337e4137630146623c38\', \'5892337e4137630146623c3e\', \'5892337e4137630146623c44\', \'5892337e4137630146623c3a\', \'5892337e4137630146623c46\', \'5892337e4137630146623c45\', \'5892337e4137630146623c47\', \'5892337e4137630146623c39\', \'5892337e4137630146623c42\', \'5892337e4137630146623c43\'], \'radar_files\': [\'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.17.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.18.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.19.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.20.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.21.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.22.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.23.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.24.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.25.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.26.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.27.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.28.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.29.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.30.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.31.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.32.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.33.mat\', \'/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.34.mat\']}"
+  }
+}
+layer {
+  name: "conv1"
+  type: "Convolution"
+  bottom: "data"
+  top: "conv1"
+  param {
+    lr_mult: 1
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 2
+    decay_mult: 0
+  }
+  convolution_param {
+    num_output: 96
+    pad: 0
+    kernel_size: 11
+    group: 1
+    stride: 4
+    weight_filler {
+      type: "msra"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "relu1"
+  type: "ReLU"
+  bottom: "conv1"
+  top: "conv1"
+}
+layer {
+  name: "pool1"
+  type: "Pooling"
+  bottom: "conv1"
+  top: "pool1"
+  pooling_param {
+    pool: MAX
+    kernel_size: 3
+    stride: 2
+  }
+}
+layer {
+  name: "norm1"
+  type: "LRN"
+  bottom: "pool1"
+  top: "norm1"
+  lrn_param {
+    local_size: 5
+    alpha: 0.0001
+    beta: 0.75
+  }
+}
+layer {
+  name: "conv2"
+  type: "Convolution"
+  bottom: "norm1"
+  top: "conv2"
+  param {
+    lr_mult: 1
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 2
+    decay_mult: 0
+  }
+  convolution_param {
+    num_output: 256
+    pad: 2
+    kernel_size: 5
+    group: 2
+    stride: 1
+    weight_filler {
+      type: "msra"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "relu2"
+  type: "ReLU"
+  bottom: "conv2"
+  top: "conv2"
+}
+layer {
+  name: "pool2"
+  type: "Pooling"
+  bottom: "conv2"
+  top: "pool2"
+  pooling_param {
+    pool: MAX
+    kernel_size: 3
+    stride: 2
+  }
+}
+layer {
+  name: "norm2"
+  type: "LRN"
+  bottom: "pool2"
+  top: "norm2"
+  lrn_param {
+    local_size: 5
+    alpha: 0.0001
+    beta: 0.75
+  }
+}
+layer {
+  name: "conv3"
+  type: "Convolution"
+  bottom: "norm2"
+  top: "conv3"
+  param {
+    lr_mult: 1
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 2
+    decay_mult: 0
+  }
+  convolution_param {
+    num_output: 384
+    pad: 1
+    kernel_size: 3
+    group: 1
+    stride: 1
+    weight_filler {
+      type: "msra"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "relu3"
+  type: "ReLU"
+  bottom: "conv3"
+  top: "conv3"
+}
+layer {
+  name: "conv4"
+  type: "Convolution"
+  bottom: "conv3"
+  top: "conv4"
+  param {
+    lr_mult: 1
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 2
+    decay_mult: 0
+  }
+  convolution_param {
+    num_output: 384
+    pad: 1
+    kernel_size: 3
+    group: 2
+    stride: 1
+    weight_filler {
+      type: "msra"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "relu4"
+  type: "ReLU"
+  bottom: "conv4"
+  top: "conv4"
+}
+layer {
+  name: "conv5"
+  type: "Convolution"
+  bottom: "conv4"
+  top: "conv5"
+  param {
+    lr_mult: 1
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 2
+    decay_mult: 0
+  }
+  convolution_param {
+    num_output: 256
+    pad: 1
+    kernel_size: 3
+    group: 2
+    stride: 1
+    weight_filler {
+      type: "msra"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "relu5"
+  type: "ReLU"
+  bottom: "conv5"
+  top: "conv5"
+}
+layer {
+  name: "pool5"
+  type: "Pooling"
+  bottom: "conv5"
+  top: "pool5"
+  pooling_param {
+    pool: MAX
+    kernel_size: 3
+    stride: 2
+  }
+}
+layer {
+  name: "fc6_new"
+  type: "InnerProduct"
+  bottom: "pool5"
+  top: "fc6_new"
+  param {
+    lr_mult: 1
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 2
+    decay_mult: 0
+  }
+  inner_product_param {
+    num_output: 4096
+    weight_filler {
+      type: "xavier"
+    }
+    bias_filler {
+      type: "constant"
+      value: 0
+    }
+  }
+}
+layer {
+  name: "relu6_new"
+  type: "ReLU"
+  bottom: "fc6_new"
+  top: "fc6_new"
+}
+layer {
+  name: "drop6"
+  type: "Dropout"
+  bottom: "fc6_new"
+  top: "fc6_new"
+}
+layer {
+  name: "fc7_new"
+  type: "InnerProduct"
+  bottom: "fc6_new"
+  top: "fc7_new"
+  param {
+    lr_mult: 1
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 2
+    decay_mult: 0
+  }
+  inner_product_param {
+    num_output: 4096
+    weight_filler {
+      type: "xavier"
+    }
+  }
+}
+layer {
+  name: "concat"
+  type: "Concat"
+  bottom: "fc7_new"
+  bottom: "radar"
+  top: "concat"
+}
+layer {
+  name: "relu7"
+  type: "ReLU"
+  bottom: "concat"
+  top: "concat"
+}
+layer {
+  name: "drop7"
+  type: "Dropout"
+  bottom: "concat"
+  top: "concat"
+}
+layer {
+  name: "final"
+  type: "InnerProduct"
+  bottom: "concat"
+  top: "final"
+  param {
+    lr_mult: 1
+    decay_mult: 1
+  }
+  param {
+    lr_mult: 2
+    decay_mult: 0
+  }
+  inner_product_param {
+    num_output: 4
+    weight_filler {
+      type: "xavier"
+    }
+  }
+}
+layer {
+  name: "loss"
+  type: "SoftmaxWithLoss"
+  bottom: "final"
+  bottom: "label"
+  top: "loss"
+}
+layer {
+  name: "acc"
+  type: "Accuracy"
+  bottom: "final"
+  bottom: "label"
+  top: "acc"
+}

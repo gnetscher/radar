@@ -55,3 +55,6 @@ def file2dateTime(inFile):
     ctim = tim.split('.')
     dstr = cal + '.' + ctim[0] + '.' + ctim[1]
     return datetime.datetime.strptime(dstr, '%Y.%m.%d.%H.%M')  
+
+if __name__ == '__main__':
+    plot_radar('/mnt/HardDrive/common/nokia_radar/sleeplab/image3d_2017.01.12_10.29.mat', 'updated29.mp4')
