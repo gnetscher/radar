@@ -71,28 +71,43 @@ def get_rcnn_detections(fileList):
       allDet.append(chainOut)
     chain2Out = chain2.produce(allDet)
     totalDet.append(chain2Out)
-    totalImageFile.append(imageFiles)
+    totalImageFile += imageFiles
   return totalDet, totalImageFile
 
 
-def create_patches(boxes, color, axis):
+def create_patches(boxes, im):
     for b in boxes:
       x1, y1, x2, y2 = b[1]
-      x1, y1 = np.floor(x1), np.floor(y1)
-      x2, y2 = np.floor(x2), np.floor(y2)
+      x, y = np.floor(x1), np.floor(y1)
+      xh, yh = np.floor(x2), np.floor(y2)
+      cv2.rectangle(im, (x,y), (xh, yh), 'r',  2)
+    
+def get_ground_truth(videos):
+  groundTruth = []
+  for video in videos:
+    loc = video.annotations[1]
+    act = jpkg_chains.Labels2MetricList()
+    chain = Chainer([act])
+    groundTruth.append(chain.produce(loc))
+  return groundTruth
 
-      rect = patches.Rectangle((x1,y1), (x2 - x1), (y2-y1), linewidth=3, edgecolor=color, facecolor='none')
-      axis.add_patch(rect)
-
-
-def visualize_results(totalDet, totalImageFile):
+def visualize_results(totalDet, totalImageFile, totalGt):
+  resultDir = "vis_output/"
   for det,im in zip(totalDet, totalImageFile):
-    print det
-
+    print "Image: " + str(im)
+    print "Pred: " + str(det)
+    fname = im.split('/')[-1]
+    img = cv2.imread(im)
+    create_patches(det, img)
+    cv2.imwrite(resultDir + fname, img)
+  print "Done saving image, check %s for results" % resultDir
+    
 
 if __name__=="__main__":
   session.authenticate('DeepLearningTeam', 'MrRobo+0')
   videos = get_videos()
   fileList, paths = create_train_txt(videos)
   totalDet, totalIm = get_rcnn_detections(fileList)
-  visualize_results(totalDet, totalIm)
+  totalGt = get_ground_truth(videos)
+  visualize_results(totalDet, totalIm, totalGt)
+   
