@@ -1,8 +1,15 @@
+# Setup
+This is our backend used to access videos. To access the videos hassle-free, follow the steps below:
+```
+pip install conf/requirements.txt
+```
+Installs relevant dependencies for usage. Finally add this directory to your PYTHONPATH and follow the steps below
+
 # Access Videos
 To be able to use the backend in your own environment, first make sure to install the requirements in conf/requirements.txt. To retrieve a video, you can either directly fetch it or iterate on a sub set of videos.
 
 ```python
-from ns_backend.standalone import session, NSVideo, NSEnum
+from standalone import session, NSVideo, NSEnum
 
 # Open a session with the server
 session.authenticate('Nokia', '**********')

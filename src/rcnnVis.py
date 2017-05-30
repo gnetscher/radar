@@ -13,7 +13,7 @@ from chainer.chains import jpkg_chains
 from chainer.chains import image_chains
 from chainer.chains import caffe_chains
 from chainer.config import *
-from ns_backend.standalone import *
+from standalone import session, NSVideo, NSEnum
 
 def get_videos():
   videos = NSVideo.objects.filter(sensor_id__startswith='Nokia').filter(annotation_id__isnull=False)
