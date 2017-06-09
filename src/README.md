@@ -38,3 +38,8 @@ ipython rcnnVis.py
 This script will save images to a folder called vis_output, where each image contains overlaid detections and ground truths.
 This will be done on all the sleeplab videos
 
+### Pretrained Models
+
+The pretrained models for the different experimental configurations can be found <a href="https://drive.google.com/drive/folders/0B6C-DilqG6vIM1FTMlQ4eWktY2s?usp=sharing">Here</a>. There are models trained on image data, radar data, and both.
+
+
