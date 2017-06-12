@@ -6,7 +6,6 @@ import shutil
 import sys
 import cv2
 
-# self imports
 from chainer.objects import experiment_objects as eo
 from chainer.objects import caffe_experiment_objects as ceo
 from chainer.objects import experiment_session
@@ -80,12 +79,18 @@ def get_rcnn_detections(fileList):
     totalImageFile.append(imageFiles)
   return totalDet, totalImageFile
 
-
-def save_detection(box, imageFile, outputDir):
+# GREEN box represents ground truth and BLUE BOX is prediction
+def save_detection(box, imageFile, gtBox, outputDir):
     if not os.path.exists(outputDir):
       os.mkdir(outputDir)
     fName = imageFile.split('/')[-4] + "_" + imageFile.split('/')[-1]
     img = cv2.imread(imageFile)
+    if len(gtBox) != 0:
+      x1, y1, x2, y2 = gtBox[2]
+      x, y = int(x1), int(y1)
+      xh, yh = int(x2), int(y2)
+      cv2.rectangle(img, (x,y), (xh, yh), (0,255,0), 2)
+
     if len(box) != 0:
       x1, y1, x2, y2 = box[0][2]
       x, y = int(x1), int(y1)
@@ -102,18 +107,36 @@ def get_ground_truth(videos):
     groundTruth.append(chain.produce(loc))
   return groundTruth
 
+def get_mAP(predictions, groundTruth):
+  fmt = jpkg_chains.MetricList2FormatMetricList()
+  maps = []
+  for p,a in zip(predictions, groundTruth):
+    mapget = metric_chains.Labels2mAP({'object': 'Person' })
+    chain = Chainer([fmt, mapget])
+    chainOut = chain.produce([a,p])
+    maps.append(chainOut)
+  return np.nanmean(maps)
+
+
 def visualize_results(totalDet, totalImageFile, totalGt):
-  for det,images in zip(totalDet, totalImageFile):
+  for det,images,ground in zip(totalDet, totalImageFile, totalGt):
     for k in range(len(det)):
-      save_detection(det[k], images[k], "vis_output/")
+      gBox = []
+      for g in ground[k]:
+        if g[1] == "Person":
+          gBox = g
+      save_detection(det[k], images[k], gBox, "vis_output/")
   print "Done saving image, check vis_output/ for results"
     
 
 if __name__=="__main__":
-  session.authenticate('Nokia', '***********')
+  session.authenticate('Nokia', '************')
   videos = get_videos()
   fileList, paths = create_train_txt(videos)
   totalDet, totalIm = get_rcnn_detections(fileList)
   totalGt = get_ground_truth(videos)
   visualize_results(totalDet, totalIm, totalGt)
-   
+  mAP = get_mAP(totalDet, totalGt)
+  print "Mean AP: " + str(mAP)
+
+
