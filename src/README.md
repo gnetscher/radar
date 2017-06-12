@@ -36,7 +36,8 @@ ipython rcnnVis.py
 ```
 
 This script will save images to a folder called vis_output, where each image contains overlaid detections and ground truths.
-This will be done on all the sleeplab videos
+This will be done on all the sleeplab videos. This script also returns the mean AP for the predictions made by our pretrained model.
+Our current results show a meanAP of 72.69
 
 ### Pretrained Models
 
