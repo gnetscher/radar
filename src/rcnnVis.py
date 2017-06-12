@@ -1,8 +1,11 @@
 from easydict import EasyDict as edict
+import ipdb
 import numpy as np
 import os
 import shutil
 import sys
+import cv2
+
 # self imports
 from chainer.objects import experiment_objects as eo
 from chainer.objects import caffe_experiment_objects as ceo
@@ -13,15 +16,15 @@ from chainer.chains import jpkg_chains
 from chainer.chains import image_chains
 from chainer.chains import caffe_chains
 from chainer.config import *
-from standalone import session, NSVideo, NSEnum
+from standalone import *
 
 def get_videos():
-  videos = NSVideo.objects.filter(sensor_id__startswith='Nokia').filter(annotation_id__isnull=False)
+  videos = NSVideo.fetch_annotated_videos(falls_only=False, home='Nokia')
   filteredVideos = []
   dataPath = get_basic_paths()['data']['dr'] + '/'
   for v in videos:
-    v.download(dst_dir=dataPath)
-    if v.annotations and v.annotations[1] and ('101656' in v.path):
+    v.download(dst_dir=dataPath, filename='%s.mp4' % str(v.id), overwrite=False)
+    if v.annotations and v.start.month == 1:
        filteredVideos.append(v)
   return filteredVideos
 
@@ -37,7 +40,7 @@ def create_train_txt(videos):
 
   for video in videos:
     p = video.path
-    a = video.annotations[1]
+    a = video.annotations
     w = video.width
     h = video.height
     labelObj = jpkg_chains.Labels2RCNNTrainTxt({'outFile': '{0}train{1}.txt'.format(
@@ -53,7 +56,10 @@ def create_train_txt(videos):
 def get_rcnn_detections(fileList):
   imProd = image_chains.File2Im()
   bgr = image_chains.RGB2BGR()
-  rcnn = caffe_chains.Im2RCNNDet()
+  prms = set_rcnn_prms(trainDataSet='coco', netName='vgg16-coco-rcnn')
+  prms['targetClasses'] = ['person']
+  prms['gpuId'] = 1
+  rcnn = caffe_chains.Im2RCNNDet(prms)
   jlbl = jpkg_chains.RCNN2Labels()
 
   totalDet = []
@@ -71,40 +77,40 @@ def get_rcnn_detections(fileList):
       allDet.append(chainOut)
     chain2Out = chain2.produce(allDet)
     totalDet.append(chain2Out)
-    totalImageFile += imageFiles
+    totalImageFile.append(imageFiles)
   return totalDet, totalImageFile
 
 
-def create_patches(boxes, im):
-    for b in boxes:
-      x1, y1, x2, y2 = b[1]
-      x, y = np.floor(x1), np.floor(y1)
-      xh, yh = np.floor(x2), np.floor(y2)
-      cv2.rectangle(im, (x,y), (xh, yh), 'r',  2)
-    
+def save_detection(box, imageFile, outputDir):
+    if not os.path.exists(outputDir):
+      os.mkdir(outputDir)
+    fName = imageFile.split('/')[-4] + "_" + imageFile.split('/')[-1]
+    img = cv2.imread(imageFile)
+    if len(box) != 0:
+      x1, y1, x2, y2 = box[0][2]
+      x, y = int(x1), int(y1)
+      xh, yh = int(x2), int(y2)
+      cv2.rectangle(img, (x,y), (xh, yh), (255,0,0),  2)
+    cv2.imwrite(outputDir + fName, img)    
+
 def get_ground_truth(videos):
   groundTruth = []
   for video in videos:
-    loc = video.annotations[1]
+    loc = video.annotations
     act = jpkg_chains.Labels2MetricList()
     chain = Chainer([act])
     groundTruth.append(chain.produce(loc))
   return groundTruth
 
 def visualize_results(totalDet, totalImageFile, totalGt):
-  resultDir = "vis_output/"
-  for det,im in zip(totalDet, totalImageFile):
-    print "Image: " + str(im)
-    print "Pred: " + str(det)
-    fname = im.split('/')[-1]
-    img = cv2.imread(im)
-    create_patches(det, img)
-    cv2.imwrite(resultDir + fname, img)
-  print "Done saving image, check %s for results" % resultDir
+  for det,images in zip(totalDet, totalImageFile):
+    for k in range(len(det)):
+      save_detection(det[k], images[k], "vis_output/")
+  print "Done saving image, check vis_output/ for results"
     
 
 if __name__=="__main__":
-  session.authenticate('Nokia', 'nokia')
+  session.authenticate('Nokia', '***********')
   videos = get_videos()
   fileList, paths = create_train_txt(videos)
   totalDet, totalIm = get_rcnn_detections(fileList)
